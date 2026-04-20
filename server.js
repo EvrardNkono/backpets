@@ -4,33 +4,38 @@ const app = require('./src/app');
 
 const PORT = process.env.PORT || 5000;
 
-// Configuration de Mongoose
 mongoose.set('strictQuery', false);
 
-// Connexion à MongoDB Atlas
-// Note : Sur Vercel, la connexion est établie à chaque invocation si elle n'existe pas.
+// Optimisation de la connexion pour le Serverless
 const connectDB = async () => {
     if (mongoose.connection.readyState >= 1) return;
     
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('✅ MongoDB Atlas Connecté (Signature Pets)');
+        // Options recommandées pour éviter les timeouts en prod
+        await mongoose.connect(process.env.MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+        });
+        console.log('✅ MongoDB Connecté');
     } catch (err) {
-        console.error('❌ Erreur de connexion à la DB :', err.message);
+        console.error('❌ Erreur DB :', err.message);
+        // Ne pas throw l'erreur ici pour éviter de crash l'instance Vercel inutilement
     }
 };
 
-// On n'appelle connectDB ici que pour le développement local
-// Vercel gérera la connexion via le middleware ou à l'import
-connectDB();
-
-// --- MODIFICATION POUR VERCEL ---
-// On ne lance app.listen QUE si on est en local
+// En local, on lance le serveur normalement
 if (process.env.NODE_ENV !== 'production') {
-    app.listen(PORT, () => {
-        console.log(`🚀 Serveur démarré sur : http://localhost:${PORT}`);
+    connectDB().then(() => {
+        app.listen(PORT, () => {
+            console.log(`🚀 Mode DEV : http://localhost:${PORT}`);
+        });
     });
 }
 
-// CRUCIAL : Exporter l'application pour que Vercel puisse l'utiliser
-module.exports = app;
+// En PROD (Vercel), on exporte une fonction qui assure la connexion
+const handler = async (req, res) => {
+    await connectDB();
+    return app(req, res);
+};
+
+module.exports = handler;
