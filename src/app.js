@@ -5,8 +5,9 @@ const morgan = require('morgan');
 
 // Import des routes
 const puppyRoutes = require('./modules/puppies/puppy.routes');
-// --- 1. IMPORT DU NOUVEAU MODULE ---
 const breedRoutes = require('./modules/breeds/breed.routes'); 
+// --- 1. IMPORT DU MODULE CHAT ---
+const chatRoutes = require('./routes/chat.routes'); 
 
 const app = express();
 
@@ -14,7 +15,7 @@ const app = express();
 app.use(helmet()); 
 app.use(cors()); 
 app.use(morgan('dev')); 
-app.use(express.json()); 
+app.use(express.json()); // CRUCIAL pour recevoir les messages du chat
 
 // --- ROUTES DE L'API ---
 app.get('/', (req, res) => {
@@ -24,13 +25,14 @@ app.get('/', (req, res) => {
     });
 });
 
-// Route pour les chiots
+// Routes existantes
 app.use('/api/v1/puppies', puppyRoutes);
-
-// --- 2. ROUTE POUR LES CATÉGORIES (BREEDS) ---
 app.use('/api/v1/breeds', breedRoutes); 
 
-// --- GESTIONNAIRE D'ERREURS (INDISPENSABLE) ---
+// --- 2. ROUTE POUR LE LIVE CHAT ---
+app.use('/api/v1/chat', chatRoutes); 
+
+// --- GESTIONNAIRE D'ERREURS ---
 app.use((err, req, res, next) => {
     console.log("--- ❌ ERREUR SERVEUR DÉTECTÉE ---");
     console.error(err); 
