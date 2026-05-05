@@ -4,12 +4,48 @@ const puppyService = require('./puppy.service');
 // @route   POST /api/v1/puppies
 exports.createPuppy = async (req, res) => {
     try {
-        const imageUrls = req.files ? req.files.map(file => file.path) : [];
-
+        // ✅ Gérer les champs multiples
+        let allImages = [];
+        
+        // Récupérer les images du champ 'images'
+        if (req.files && req.files['images']) {
+            const urls = req.files['images'].map(file => file.path);
+            allImages.push(...urls);
+        }
+        
+        // Récupérer l'image principale du champ 'mainImage'
+        if (req.files && req.files['mainImage']) {
+            const urls = req.files['mainImage'].map(file => file.path);
+            allImages.push(...urls);
+        }
+        
+        // Récupérer les images de galerie du champ 'galleryImages'
+        if (req.files && req.files['galleryImages']) {
+            const urls = req.files['galleryImages'].map(file => file.path);
+            allImages.push(...urls);
+        }
+        
+        // Conserver les images existantes (si c'est une édition avec existingImages)
+        if (req.body.existingImages) {
+            try {
+                const existing = JSON.parse(req.body.existingImages);
+                allImages = [...existing, ...allImages];
+            } catch(e) {
+                console.log('Error parsing existingImages:', e);
+            }
+        }
+        
         const puppyData = {
             ...req.body,
-            images: imageUrls
+            images: allImages
         };
+        
+        // Nettoyer les champs temporaires
+        delete puppyData.existingImages;
+        delete puppyData.mainImageFile;
+        delete puppyData.galleryFiles;
+        delete puppyData.mainImage;
+        delete puppyData.galleryImages;
 
         const newPuppy = await puppyService.createPuppy(puppyData);
 
@@ -58,12 +94,49 @@ exports.getPuppy = async (req, res) => {
 exports.updatePuppy = async (req, res) => {
     try {
         let updateData = { ...req.body };
-
-        // Si de nouvelles images sont téléchargées via Multer/Cloudinary
-        if (req.files && req.files.length > 0) {
-            const imageUrls = req.files.map(file => file.path);
-            updateData.images = imageUrls;
+        
+        // ✅ Gérer les champs multiples pour la mise à jour
+        let allImages = [];
+        
+        // 1. Récupérer les images existantes (envoyées en JSON depuis le frontend)
+        if (req.body.existingImages) {
+            try {
+                const existing = JSON.parse(req.body.existingImages);
+                allImages.push(...existing);
+            } catch(e) {
+                console.log('Error parsing existingImages:', e);
+            }
         }
+        
+        // 2. Récupérer les nouvelles images du champ 'images'
+        if (req.files && req.files['images']) {
+            const urls = req.files['images'].map(file => file.path);
+            allImages.push(...urls);
+        }
+        
+        // 3. Récupérer l'image principale du champ 'mainImage'
+        if (req.files && req.files['mainImage']) {
+            const urls = req.files['mainImage'].map(file => file.path);
+            allImages.push(...urls);
+        }
+        
+        // 4. Récupérer les images de galerie du champ 'galleryImages'
+        if (req.files && req.files['galleryImages']) {
+            const urls = req.files['galleryImages'].map(file => file.path);
+            allImages.push(...urls);
+        }
+        
+        // 5. Mettre à jour le champ images si de nouvelles images arrivent
+        if (allImages.length > 0) {
+            updateData.images = allImages;
+        }
+        
+        // Nettoyer les champs temporaires
+        delete updateData.existingImages;
+        delete updateData.mainImageFile;
+        delete updateData.galleryFiles;
+        delete updateData.mainImage;
+        delete updateData.galleryImages;
 
         const updatedPuppy = await puppyService.updatePuppy(req.params.id, updateData);
 
@@ -103,15 +176,15 @@ exports.deletePuppy = async (req, res) => {
     }
 };
 
-// ========== NOUVELLES FONCTIONS POUR LE CAROUSEL ==========
+// ========== FONCTIONS POUR LE CAROUSEL ==========
 
-// @desc    Ajouter des images à un chiot existant (sans remplacer les existantes)
+// @desc    Ajouter des images à un chiot existant
 // @route   POST /api/v1/puppies/:id/images/add
 exports.addPuppyImages = async (req, res) => {
     try {
         const { id } = req.params;
         
-        // Vérifier si des fichiers ont été uploadés
+        // ✅ Vérifier les fichiers dans le champ 'images' (upload.array)
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ 
                 success: false, 
@@ -119,10 +192,8 @@ exports.addPuppyImages = async (req, res) => {
             });
         }
 
-        // Récupérer les URLs des nouvelles images
         const newImageUrls = req.files.map(file => file.path);
         
-        // Récupérer le chiot existant
         const puppy = await puppyService.getPuppyById(id);
         if (!puppy) {
             return res.status(404).json({ 
@@ -131,10 +202,7 @@ exports.addPuppyImages = async (req, res) => {
             });
         }
 
-        // Fusionner les images existantes avec les nouvelles
         const updatedImages = [...puppy.images, ...newImageUrls];
-        
-        // Mettre à jour le chiot
         const updatedPuppy = await puppyService.updatePuppy(id, { 
             images: updatedImages 
         });
@@ -163,7 +231,6 @@ exports.replacePuppyImages = async (req, res) => {
     try {
         const { id } = req.params;
         
-        // Vérifier si des fichiers ont été uploadés
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ 
                 success: false, 
@@ -171,10 +238,7 @@ exports.replacePuppyImages = async (req, res) => {
             });
         }
 
-        // Récupérer les URLs des nouvelles images
         const newImageUrls = req.files.map(file => file.path);
-        
-        // Remplacer complètement les images
         const updatedPuppy = await puppyService.updatePuppy(id, { 
             images: newImageUrls 
         });
@@ -209,7 +273,7 @@ exports.replacePuppyImages = async (req, res) => {
 exports.removePuppyImage = async (req, res) => {
     try {
         const { id } = req.params;
-        const { imageUrl } = req.body; // URL de l'image à supprimer
+        const { imageUrl } = req.body;
         
         if (!imageUrl) {
             return res.status(400).json({ 
@@ -218,7 +282,6 @@ exports.removePuppyImage = async (req, res) => {
             });
         }
 
-        // Récupérer le chiot
         const puppy = await puppyService.getPuppyById(id);
         if (!puppy) {
             return res.status(404).json({ 
@@ -227,10 +290,7 @@ exports.removePuppyImage = async (req, res) => {
             });
         }
 
-        // Filtrer pour supprimer l'image spécifique
         const updatedImages = puppy.images.filter(img => img !== imageUrl);
-        
-        // Mettre à jour le chiot
         const updatedPuppy = await puppyService.updatePuppy(id, { 
             images: updatedImages 
         });
@@ -258,7 +318,7 @@ exports.removePuppyImage = async (req, res) => {
 exports.reorderPuppyImages = async (req, res) => {
     try {
         const { id } = req.params;
-        const { imageOrder } = req.body; // Tableau des URLs dans le nouvel ordre
+        const { imageOrder } = req.body;
         
         if (!imageOrder || !Array.isArray(imageOrder)) {
             return res.status(400).json({ 
@@ -267,7 +327,6 @@ exports.reorderPuppyImages = async (req, res) => {
             });
         }
 
-        // Récupérer le chiot
         const puppy = await puppyService.getPuppyById(id);
         if (!puppy) {
             return res.status(404).json({ 
@@ -276,7 +335,6 @@ exports.reorderPuppyImages = async (req, res) => {
             });
         }
 
-        // Vérifier que toutes les images existent
         const allImagesExist = imageOrder.every(url => puppy.images.includes(url));
         if (!allImagesExist || imageOrder.length !== puppy.images.length) {
             return res.status(400).json({ 
@@ -285,7 +343,6 @@ exports.reorderPuppyImages = async (req, res) => {
             });
         }
 
-        // Mettre à jour avec le nouvel ordre
         const updatedPuppy = await puppyService.updatePuppy(id, { 
             images: imageOrder 
         });

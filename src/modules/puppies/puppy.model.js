@@ -16,11 +16,12 @@ const puppySchema = new mongoose.Schema({
         required: [true, "L'âge est obligatoire"],
         default: "8 weeks"
     },
-    gender: {
-        type: String,
-        enum: ['Mâle', 'Femelle'],
-        required: [true, "Le genre est obligatoire"]
-    },
+    // Dans votre modèle puppy.model.js
+gender: {
+    type: String,
+    enum: ['Male', 'Female', 'Mâle', 'Femelle'], // Accepte les deux
+    required: [true, "Le genre est obligatoire"]
+},
     color: {
         type: String,
         trim: true
